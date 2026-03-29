@@ -27,6 +27,10 @@ from .views import (
     ExportNotesPDF,
     ExportJournalPDF,
     ExportBackup,
+    ExportSingleNotePDF,
+    DashboardDataView,
+    ChangePasswordView,
+    ExportAnalysisView,
 )
 
 urlpatterns = [
@@ -63,6 +67,12 @@ urlpatterns = [
     path("export/notes/pdf/", ExportNotesPDF.as_view()),
 path("export/journal/pdf/", ExportJournalPDF.as_view()),
 path("export/backup/", ExportBackup.as_view()),
+# path("export/notes/pdf/", export_notes_pdf),
+# path("export/journal/pdf/", export_journal_pdf),
+path("export/note/<int:note_id>/pdf/", ExportSingleNotePDF.as_view()),
+path("dashboard-data/", DashboardDataView.as_view()),
+path("change-password/", ChangePasswordView.as_view()),
+path("export/analysis/", ExportAnalysisView.as_view()),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 

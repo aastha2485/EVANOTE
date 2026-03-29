@@ -1,0 +1,18 @@
+<html>
+<head>
+    <style>
+        body { font-family: Arial; }
+    </style>
+</head>
+<body>
+
+<h1>Journal</h1>
+
+{% for entry in entries %}
+    <h3>{{ entry.date }}</h3>
+    <p>{{ entry.content|safe }}</p>
+    <hr>
+{% endfor %}
+
+</body>
+</html>

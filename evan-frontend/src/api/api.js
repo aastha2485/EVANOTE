@@ -4,13 +4,13 @@ export async function apiRequest(
   endpoint,
   method = "GET",
   data = null,
-  isBlob = false   // ✅ added
+  isBlob = false
 ) {
   const token = localStorage.getItem("access");
 
   const headers = {};
 
-  // ✅ only set JSON header if not FormData
+  // ✅ Only JSON if not FormData
   if (!(data instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
@@ -30,14 +30,14 @@ export async function apiRequest(
         : null,
   });
 
-  // 🔥 HANDLE 401
+  // 🔥 Handle auth
   if (res.status === 401) {
     localStorage.removeItem("access");
     localStorage.removeItem("refresh");
     window.location.reload();
   }
 
-  // ✅ HANDLE BLOB FIRST
+  // ✅ Handle blob FIRST (PDF export)
   if (isBlob) {
     if (!res.ok) {
       throw new Error("File download failed");
@@ -45,7 +45,7 @@ export async function apiRequest(
     return await res.blob();
   }
 
-  // ✅ SAFE JSON PARSE
+  // ✅ Safe JSON parse
   let responseData = null;
   try {
     responseData = await res.json();

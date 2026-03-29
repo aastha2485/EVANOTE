@@ -21,6 +21,7 @@ class NoteSerializer(serializers.ModelSerializer):
             "topic",
             "created_at",
             "updated_at",
+            "tag",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
     
@@ -48,7 +49,7 @@ class TrackSerializer(serializers.ModelSerializer):
     class Meta: 
         model = Track
         fields = "__all__"
-        read_only_fields = ["user", "created_at"]
+        read_only_fields = ["user", "created_at", "tag",]
         
         
 
@@ -60,7 +61,7 @@ class TopicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Topic
         fields = "__all__"
-        read_only_fields = ["track", "created_at"]
+        read_only_fields = ["track", "created_at", "tag"]
 
     def get_note_id(self, obj):
         if hasattr(obj, "note"):
@@ -68,7 +69,6 @@ class TopicSerializer(serializers.ModelSerializer):
         return None
     
     def validate(self, data):
-        # Determine track
         if self.instance:
             track = self.instance.track
         else:
@@ -77,26 +77,18 @@ class TopicSerializer(serializers.ModelSerializer):
         if not track:
             return data
 
-        # Determine final repeat type after update
-        repeat_type = data.get("repeat_type", None)
+        if "repeat_type" not in data:
+            return data
 
-        if self.instance:
-            final_repeat_type = repeat_type if repeat_type is not None else self.instance.repeat_type
-        else:
-            final_repeat_type = repeat_type
+        repeat_type = data.get("repeat_type")
 
-        # Restrict repeat to personal tracks
-        if final_repeat_type and final_repeat_type != "none" and track.type != "personal":
+        if repeat_type and repeat_type != "none" and track.type != "personal":
             raise serializers.ValidationError(
                 "Repeat is allowed only in Personal tracks."
             )
 
-        # Weekly validation (supports partial updates)
-        if final_repeat_type == "weekly":
-            weekly_target = data.get(
-                "weekly_target",
-                self.instance.weekly_target if self.instance else None
-            )
+        if repeat_type == "weekly":
+            weekly_target = data.get("weekly_target")
 
             if not weekly_target or weekly_target < 1 or weekly_target > 7:
                 raise serializers.ValidationError(

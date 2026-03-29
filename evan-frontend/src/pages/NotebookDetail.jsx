@@ -4,11 +4,14 @@ import { apiRequest } from "../api/api";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowLeft, faPlus } from "@fortawesome/free-solid-svg-icons";
 import Breadcrumbs from "../components/Breadcrumbs";
+import { useLocation } from "react-router-dom";
 
 function NotebookDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-
+  // const location = useLocation();
+  // const queryParams = new URLSearchParams(location.search);
+  // const notebookIdFromQuery = queryParams.get("notebook");
   const [notebook, setNotebook] = useState(null);
   const [notes, setNotes] = useState([]);
 
@@ -67,7 +70,7 @@ function NotebookDetail() {
               border: "var(--border)",
               cursor: "pointer",
             }}
-            onClick={() => navigate(`/notes/${note.id}`)}
+            onClick={() => navigate(`/notes/${note.id}?notebook=${id}`)}
           >
             <h3>{note.title || "Untitled"}</h3>
             <p style={{ opacity: 0.7 }}>

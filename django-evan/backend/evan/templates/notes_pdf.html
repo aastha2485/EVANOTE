@@ -1,0 +1,19 @@
+<html>
+<head>
+    <style>
+        body { font-family: Arial; }
+        h2 { margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<h1>My Notes</h1>
+
+{% for note in notes %}
+    <h2>{{ note.title }}</h2>
+    <p>{{ note.content|safe }}</p>
+    <hr>
+{% endfor %}
+
+</body>
+</html>

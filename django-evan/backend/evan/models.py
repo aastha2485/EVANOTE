@@ -50,6 +50,17 @@ class Note(models.Model):
     content = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    TAG_CHOICES = [
+        ("important", "Important"),
+        ("attention", "Needs Attention"),
+        ("reference", "Reference"),
+    ]
+    
+    tag = models.CharField(
+        max_length=20,
+        choices=TAG_CHOICES,
+        default="reference"
+    )
 
     class Meta:
         ordering = ['-updated_at']
@@ -76,6 +87,17 @@ class Track(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
     due_date = models.DateField(null=True, blank=True)
+    TAG_CHOICES = [
+        ("important", "Important"),
+        ("attention", "Needs Attention"),
+        ("reference", "Reference"),
+    ]
+    
+    tag = models.CharField(
+        max_length=20,
+        choices=TAG_CHOICES,
+        default="important"
+    )
     @property
     def progress_percentage(self):
         if self.type == "personal":
@@ -148,6 +170,18 @@ class Topic(models.Model):
     repeat_interval_days = models.IntegerField(
         null=True,
         blank=True
+    )
+    
+    TAG_CHOICES = [
+        ("important", "Important"),
+        ("attention", "Needs Attention"),
+        ("reference", "Reference"),
+    ]
+    
+    tag = models.CharField(
+        max_length=20,
+        choices=TAG_CHOICES,
+        default="important"
     )
 
     @property
@@ -294,23 +328,29 @@ class UserSettings(models.Model):
     def __str__(self):
         return f"{self.user.username} settings"
     
-    
-class DailyActivity(models.Model):
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="activities"
+
+from django.utils.timezone import now
+
+class ActivityLog(models.Model):
+    ACTION_TYPES = [
+        ("note_create", "Note Created"),
+        ("note_edit", "Note Edited"),
+        ("topic_update", "Topic Updated"),
+        ("topic_complete", "Topic Completed"),
+        ("explanation", "Feynman Explanation"),
+        ("journal", "Journal Entry"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    action_type = models.CharField(
+        max_length=50,
+        choices=ACTION_TYPES,
+        default="note_create"
     )
 
-    date = models.DateField()
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ("user", "date")
-        ordering = ["-date"]
+    date = models.DateField(default=now)  # ✅ IMPORTANT
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.user} - {self.date}"
-    
-
+        return f"{self.user} - {self.action_type} - {self.date}"

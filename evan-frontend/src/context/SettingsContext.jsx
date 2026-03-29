@@ -4,17 +4,34 @@ import { apiRequest } from "../api/api";
 const SettingsContext = createContext();
 
 export function SettingsProvider({ children }) {
-  const [settings, setSettings] = useState(null);
-  const [user, setUser] = useState(null);
+  const defaultSettings = {
+  show_due_warnings: true,
+  insights_neglect: true,
+  insights_journal: true,
+  insights_minimal: false,
+};
+
+const [settings, setSettings] = useState(defaultSettings);
+  const [user, setUser] = useState(() => {
+    const cached = localStorage.getItem("user");
+    return cached ? JSON.parse(cached) : null;
+  });
   const [loading, setLoading] = useState(true);
 
   const token = localStorage.getItem("access");
+  const [sidebarVersion, setSidebarVersion] = useState(0);
+
+const refreshSidebar = () => {
+  setSidebarVersion(prev => prev + 1);
+};
 
   useEffect(() => {
   if (!token) {
     setLoading(false);
     return;
   }
+
+  
 
   async function loadAll() {
     try {
@@ -23,10 +40,12 @@ export function SettingsProvider({ children }) {
         apiRequest("/profile/")
       ]);
 
-      setSettings(settingsData);
+      setSettings({ ...defaultSettings, ...settingsData });
       setUser(userData);
+      localStorage.setItem("user", JSON.stringify(userData));
     } catch (err) {
       console.error("Load failed:", err);
+      setSettings(defaultSettings);
     } finally {
       setLoading(false); // ✅ important
     }
@@ -40,12 +59,16 @@ export function SettingsProvider({ children }) {
       [field]: value,
     });
 
-    setSettings(updated);
+    setSettings(prev => ({
+  ...prev,
+  ...updated
+}));
   }
 
   return (
     <SettingsContext.Provider
-      value={{ settings, updateSetting, user, setUser, loading }}
+      value={{ settings, updateSetting, user, setUser, loading, sidebarVersion,
+  refreshSidebar }}
     >
       {children}
     </SettingsContext.Provider>

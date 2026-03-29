@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../api/api";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
+import { useSettings } from "../context/SettingsContext";
 
 function Notebooks() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ function Notebooks() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
   const [openMenu, setOpenMenu] = useState(null);
+const { refreshSidebar } = useSettings();
 
   function loadNotebooks() {
     apiRequest("/notebooks/").then((data) => {
@@ -34,6 +36,7 @@ function Notebooks() {
     setNewName("");
     setCreating(false);
     loadNotebooks();
+    refreshSidebar()
   }
 
   async function handleRename(id) {
@@ -45,11 +48,14 @@ function Notebooks() {
 
     setRenamingId(null);
     loadNotebooks();
+    refreshSidebar()
   }
 
   async function handleDelete(id) {
     await apiRequest(`/notebooks/${id}/`, "DELETE");
     loadNotebooks();
+
+    refreshSidebar();
   }
 
   useEffect(() => {

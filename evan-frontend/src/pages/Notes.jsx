@@ -276,6 +276,26 @@ function Notes({ searchQuery }) {
         📥 Inbox
       </div>
 
+      <select
+  value={note.tag || "reference"}
+  onClick={(e) => e.stopPropagation()}
+  onChange={(e) => {
+    apiRequest(`/notes/${note.id}/`, "PATCH", {
+      tag: e.target.value
+    });
+    loadNotes();
+  }}
+  style={{
+    marginTop: "8px",
+    padding: "4px",
+    fontSize: "12px"
+  }}
+>
+  <option value="important">⭐</option>
+  <option value="attention">🔁</option>
+  <option value="reference">📌</option>
+</select>
+
       {/* Notebooks */}
       {notebooks.map((nb) => (
         <div

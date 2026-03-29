@@ -31,6 +31,8 @@ function TrackDetail() {
   const [topicSort, setTopicSort] = useState("custom");
   const { settings } = useSettings();
   const [personalStats, setPersonalStats] = useState(null);
+const { refreshSidebar } = useSettings();
+
 
   const statusColors = {
     pending: "#444",
@@ -154,6 +156,7 @@ function TrackDetail() {
 
     setRenaming(false);
     loadTrack();
+    refreshSidebar()
   }
 
   async function handleDeleteTrack() {
@@ -162,6 +165,8 @@ function TrackDetail() {
 
     await apiRequest(`/tracks/${id}/`, "DELETE");
     navigate("/tracks");
+
+     refreshSidebar();
   }
 
   function getDueStatus(dateString) {
@@ -257,6 +262,7 @@ function TrackDetail() {
           {showDateInput && (
             <input
               type="date"
+              className="date-input"
               autoFocus
               onBlur={() => setShowDateInput(false)}   // 🔥 auto close
               defaultValue={trackData.due_date || ""}
@@ -403,6 +409,20 @@ function TrackDetail() {
               : status.replace("_", " ")}
           </button>
         ))}
+
+        {/* <select
+  value={trackData.tag || "important"}
+  onChange={async (e) => {
+    await apiRequest(`/tracks/${id}/`, "PATCH", {
+      tag: e.target.value
+    });
+    loadTrack();
+  }}
+>
+  <option value="important">⭐ Important</option>
+  <option value="attention">🔁 Needs Attention</option>
+  <option value="reference">📌 Reference</option>
+</select> */}
 
         <div style={{ marginLeft: "auto" }}>
           <select
@@ -672,6 +692,8 @@ function TrackDetail() {
       color: "var(--text)"
     }}
   />
+
+  
 )}
 
 
@@ -711,9 +733,28 @@ function TrackDetail() {
                 </div>
               )}
 
+              {/* <select
+  value={topic.tag || "important"}
+  onChange={async (e) => {
+    await apiRequest(`/topics/${topic.id}/`, "PATCH", {
+      tag: e.target.value
+    });
+    loadTopics();
+  }}
+  style={{
+    fontSize: "12px",
+    padding: "2px 4px"
+  }}
+>
+  <option value="important">⭐</option>
+  <option value="attention">🔁</option>
+  <option value="reference">📌</option>
+</select> */}
+
               {editingTopicDateId === topic.id && (
                 <input
                   type="date"
+                  className="date-input"
                   autoFocus
                   defaultValue={topic.due_date || ""}
                   onBlur={() => setEditingTopicDateId(null)}

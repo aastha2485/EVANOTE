@@ -24,7 +24,6 @@ import Dashboard from "./pages/Dashboard";
 import { apiRequest } from "./api/api";
 import { useSettings } from "./context/SettingsContext";
 
-
 function AppWrapper() {
   
 
@@ -161,6 +160,7 @@ function AppWrapper() {
                     />
                   ) : (
                     <Routes>
+                      
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/search" element={<Search />} />
                       <Route

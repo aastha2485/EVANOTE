@@ -1,208 +1,257 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "../api/api";
 import { useSettings } from "../context/SettingsContext";
-
-
-async function exportNotesPDF() {
-  const blob = await apiRequest("/export/notes/pdf/", "GET", null, true);
-  downloadFile(blob, "evanote-notes.pdf");
-}
-
-async function exportJournalPDF() {
-  const blob = await apiRequest("/export/journal/pdf/", "GET", null, true);
-  downloadFile(blob, "evanote-journal.pdf");
-}
-
-async function exportBackupJSON() {
-  const blob = await apiRequest("/export/backup/", "GET", null, true);
-  downloadFile(blob, "evanote-backup.json");
-}
-
-function downloadFile(blob, filename) {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-}
+import ExportSection from "../components/ExportSection";
 
 function Settings() {
-    const { settings, updateSetting } = useSettings();
+  const { settings, updateSetting } = useSettings();
 
-  
+const [showPasswordForm, setShowPasswordForm] = useState(false);
+const [passwordData, setPasswordData] = useState({
+  old: "",
+  new: "",
+  confirm: "",
+});
+const [loading, setLoading] = useState(false);
+const [message, setMessage] = useState("");
 
+async function handleChangePassword() {
+  setMessage("");
 
-    
+  if (passwordData.new !== passwordData.confirm) {
+    setMessage("New passwords do not match");
+    return;
+  }
 
-    async function handleExport() {
-        const data = await apiRequest("/export/");
-        
-        const blob = new Blob([JSON.stringify(data, null, 2)], {
-            type: "application/json",
-        });
+  if (passwordData.new.length < 8) {
+    setMessage("Password must be at least 8 characters");
+    return;
+  }
 
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "evanote_data.json";
-        a.click();
-    }
+  try {
+    setLoading(true);
 
-    if (!settings) return <div className="container">Loading Settings...</div>;
+    await apiRequest("/change-password/", "POST", {
+      old_password: passwordData.old,
+      new_password: passwordData.new,
+    });
 
-    return (
-        <div
-            className="container"
-            style={{
-                maxWidth: "700px",
-                maxHeight: "80vh",
-                overflowY: "auto",
-                paddingRight: "10px"
-            }}
-        >
-            <h2>Settings</h2>
+    setMessage("✅ Password updated successfully");
+    setPasswordData({ old: "", new: "", confirm: "" });
+    setShowPasswordForm(false);
+  } catch (err) {
+    setMessage(err.message);
+  } finally {
+    setLoading(false);
+  }
+}
 
-            {/* Appearance */}
-            <section>
-                <h3>Appearance</h3>
-                <div>
-                    <label>
-                        <input
-                            type="radio"
-                            checked={settings.theme === "dark"}
-                            onChange={() => updateSetting("theme", "dark")}
-                        />
-                        Dark Mode
-                    </label>
+  if (!settings) return <div className="container">Loading Settings...</div>;
 
-                    <label style={{ marginLeft: "20px" }}>
-                        <input
-                            type="radio"
-                            checked={settings.theme === "light"}
-                            onChange={() => updateSetting("theme", "light")}
-                        />
-                        Light Mode
-                    </label>
-                </div>
-            </section>
+  return (
+    <div className="settings-container">
+      <h2 className="settings-title">Settings</h2>
 
-            <hr />
+      {/* Learning Preferences */}
+      <section className="settings-section">
+        <h3>Learning Preferences</h3>
 
-            {/* Learning Preferences */}
-            <section>
-                <h3>Learning Preferences</h3>
+        <div className="settings-row">
+          <div>
+            <label className="settings-label">
+              Feynman Completion Threshold
+            </label>
+          </div>
 
-                <div style={{ marginBottom: "15px" }}>
-                    <label>
-                        Feynman Completion Threshold:
-                        <input
-                            type="number"
-                            min="0.6"
-                            max="0.9"
-                            step="0.05"
-                            value={settings.feynman_threshold}
-                            onChange={(e) =>
-                                updateSetting(
-                                    "feynman_threshold",
-                                    parseFloat(e.target.value)
-                                )
-                            }
-                            style={{ marginLeft: "10px", width: "70px" }}
-                        />
-                    </label>
-                </div>
+          <input
+            type="number"
+            min="0.6"
+            max="0.9"
+            step="0.05"
+            value={settings.feynman_threshold}
+            onChange={(e) =>
+              updateSetting(
+                "feynman_threshold",
+                parseFloat(e.target.value)
+              )
+            }
+            className="settings-input"
+          />
+        </div>
 
-                <div>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={settings.auto_mark_done}
-                            onChange={(e) =>
-                                updateSetting("auto_mark_done", e.target.checked)
-                            }
-                        />
-                        Auto Mark Topic as Done
-                    </label>
-                </div>
-            </section>
+        <div className="settings-row">
+          <span className="settings-label">Auto Mark Topic as Done</span>
 
-            <hr />
+          <input
+            type="checkbox"
+            checked={settings.auto_mark_done}
+            onChange={(e) =>
+              updateSetting("auto_mark_done", e.target.checked)
+            }
+          />
+        </div>
+      </section>
 
-            {/* Notifications */}
-            <section>
-                <h3>Notifications</h3>
+      <hr />
 
-                <label>
-                    <input
-                        type="checkbox"
-                        checked={settings.show_due_warnings}
-                        onChange={(e) =>
-                            updateSetting("show_due_warnings", e.target.checked)
-                        }
-                    />
-                    Show Due Date Warning Colors
-                </label>
-            </section>
+      {/* Insights */}
+      <section className="settings-section">
+        <h3>🧠 Insights Preferences</h3>
 
-            <hr />
+        <div className="settings-card">
+          <div className="settings-row">
+            <div>
+              <div className="settings-label">
+                Remind me about things I might be missing
+              </div>
+              <p className="settings-desc">
+                Shows neglected topics and tracks
+              </p>
+            </div>
 
-            <ExportSection/>
-            <hr/>
+            <input
+              type="checkbox"
+              checked={settings?.insights_neglect}
+              onChange={(e) =>
+                updateSetting("insights_neglect", e.target.checked)
+              }
+            />
+          </div>
 
-            {/* Data & Privacy */}
-            <section>
-  <h3>Data & Privacy</h3>
+          <div className="settings-row">
+            <div>
+              <div className="settings-label">
+                Use my journal to give deeper insights
+              </div>
+              <p className="settings-desc">
+                Connects thoughts with productivity
+              </p>
+            </div>
+
+            <input
+              type="checkbox"
+              checked={settings?.insights_journal}
+              onChange={(e) =>
+                updateSetting("insights_journal", e.target.checked)
+              }
+            />
+          </div>
+
+          <div className="settings-row">
+            <div>
+              <div className="settings-label">
+                Keep insights minimal
+              </div>
+              <p className="settings-desc">
+                Shows fewer, simpler insights
+              </p>
+            </div>
+
+            <input
+              type="checkbox"
+              checked={settings?.insights_minimal}
+              onChange={(e) =>
+                updateSetting("insights_minimal", e.target.checked)
+              }
+            />
+          </div>
+        </div>
+      </section>
+
+      <hr />
+
+      {/* Notifications */}
+      <section className="settings-section">
+        <h3>Notifications</h3>
+
+        <div className="settings-row">
+          <span className="settings-label">
+            Show Due Date Warning Colors
+          </span>
+
+          <input
+            type="checkbox"
+            checked={settings.show_due_warnings}
+            onChange={(e) =>
+              updateSetting("show_due_warnings", e.target.checked)
+            }
+          />
+        </div>
+      </section>
+
+      <hr />
+<h3>Export</h3>
+      <ExportSection />
+
+      <hr />
+
+      <section className="settings-section">
+  <h3>Security</h3>
 
   <button
-    onClick={() =>
-      downloadFile(
-        "/export/all/",
-        `evanote-all-data-${new Date().toISOString().split("T")[0]}.json`
-      )
-    }
+    className="secondary-btn"
+    onClick={() => setShowPasswordForm(!showPasswordForm)}
   >
-    Export All Data (JSON)
+    Change Password
   </button>
 
-  <br /><br />
+  {showPasswordForm && (
+    <div className="password-card">
+      <input
+        type="password"
+        placeholder="Current Password"
+        value={passwordData.old}
+        onChange={(e) =>
+          setPasswordData({ ...passwordData, old: e.target.value })
+        }
+      />
 
-  <button
-    onClick={() =>
-      downloadFile(
-        "/export/journal/",
-        `evanote-journal-${new Date().toISOString().split("T")[0]}.json`
-      )
-    }
-  >
-    Export Journal (JSON)
-  </button>
+      <input
+        type="password"
+        placeholder="New Password"
+        value={passwordData.new}
+        onChange={(e) =>
+          setPasswordData({ ...passwordData, new: e.target.value })
+        }
+      />
+
+      <input
+        type="password"
+        placeholder="Confirm New Password"
+        value={passwordData.confirm}
+        onChange={(e) =>
+          setPasswordData({ ...passwordData, confirm: e.target.value })
+        }
+      />
+
+      <button onClick={handleChangePassword} disabled={loading}>
+        {loading ? "Updating..." : "Update Password"}
+      </button>
+
+      {message && <p className="settings-desc">{message}</p>}
+    </div>
+  )}
 </section>
 
-<hr style={{ margin: "30px 0" }} />
+      {/* Danger Zone */}
+      <section className="settings-section">
+        <h3 className="danger-title">Danger Zone</h3>
 
-<h3 style={{ color: "#ef4444" }}>Danger Zone</h3>
+        <button
+          className="danger-btn"
+          onClick={async () => {
+            const confirmDelete = window.confirm("Delete account?");
+            if (!confirmDelete) return;
 
-<button
-  style={{
-    background: "#1a1a1a",
-    border: "1px solid #ef4444",
-    color: "#ef4444",
-    padding: "10px 14px",
-    borderRadius: "8px",
-    cursor: "pointer"
-  }}
-  onClick={async () => {
-    const confirmDelete = window.confirm("Delete account?");
-    if (!confirmDelete) return;
-
-    await apiRequest("/profile/delete/", "DELETE");
-    window.location.href = "/signup";
-  }}
->
-  Delete Account
-</button>
-        </div>
-    );
+            await apiRequest("/profile/delete/", "DELETE");
+            window.location.href = "/signup";
+          }}
+        >
+          Delete Account
+        </button>
+      </section>
+    </div>
+  );
 }
 
 export default Settings;

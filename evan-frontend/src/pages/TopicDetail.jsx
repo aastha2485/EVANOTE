@@ -109,6 +109,27 @@ function TopicDetail() {
     { label: topic.title }
   ]}
 />
+<div style={{ marginTop: "10px" }}>
+  <label>Tag:</label>
+
+  <select
+    value={topic.tag || "important"}
+    onChange={async (e) => {
+      await apiRequest(`/topics/${id}/`, "PATCH", {
+        tag: e.target.value
+      });
+      loadTopic();
+    }}
+    style={{
+      marginLeft: "10px",
+      padding: "6px"
+    }}
+  >
+    <option value="important">⭐ Important</option>
+    <option value="attention">🔁 Needs Attention</option>
+    <option value="reference">📌 Reference</option>
+  </select>
+</div>
 
       <div
         style={{

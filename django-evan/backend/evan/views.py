@@ -1,5 +1,5 @@
 
-from rest_framework import generics
+from rest_framework import generics, request
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework import status
@@ -13,10 +13,11 @@ from .models import (Notebook,
                      JournalEntry,
                      UserProfile,
                      UserSettings,
-                     DailyActivity,
+                     ActivityLog,
                      )
 from .serializers import NotebookSerializer, NoteSerializer, RegisterSerializer, TrackSerializer, TopicSerializer, FeynmanSerializer, JournalEntrySerializer
 from django.contrib.auth import get_user_model
+from xhtml2pdf import pisa
 
 User = get_user_model()
 from django.shortcuts import get_object_or_404
@@ -29,11 +30,22 @@ from django.utils import timezone
 from django.db.models.functions import ExtractDay
 from django.db.models import Count
 from django.utils.timezone import make_aware
-from datetime import datetime
+from datetime import datetime, date
 from datetime import timedelta
 from zoneinfo import ZoneInfo   # Python 3.9+
 from django.db.models import Avg
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from collections import Counter
+from .utils.activity import log_activity
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
+# clean_content = strip_tags(note.content)
+today = date.today()
 
 def calculate_streak(user):
     today = timezone.now().date()
@@ -164,6 +176,7 @@ class AllNotesListCreateView(generics.ListCreateAPIView):
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        log_activity(self.request.user, "note")
         
 class NoteDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = NoteSerializer
@@ -228,7 +241,7 @@ class TopicDetailView(generics.RetrieveUpdateDestroyAPIView):
         # If changed to done
         if "status" in request.data:
             if instance.status == "done" and status_before != "done":
-                register_activity(request.user)
+                log_activity(request.user, "topic")
                 today = timezone.now().date()
                 instance.completed_at = timezone.now()
                 instance.last_completed_date = today
@@ -268,7 +281,7 @@ class FeynmanListCreateView(generics.ListCreateAPIView):
         ).order_by("-created_at")
 
     def perform_create(self, serializer):
-        register_activity(self.request.user)
+        log_activity(self.request.user, "feynman")
         topic = get_object_or_404(
             Topic,
             id=self.kwargs["topic_id"],
@@ -456,6 +469,10 @@ class JournalEntryView(APIView):
         entry, _ = JournalEntry.objects.get_or_create(
             user=request.user,
             date=parsed_date
+        )
+        ActivityLog.objects.create(
+            user=request.user,
+            action_type="journal"
         )
 
         return Response({
@@ -691,24 +708,7 @@ class ExportJournalView(APIView):
         return Response(data)
     
     
-class ExportJournalView(APIView):
-    permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        journals = JournalEntry.objects.filter(user=request.user)
-
-        data = {
-            "exported_at": now(),
-            "journal_entries": [
-                {
-                    "date": j.date,
-                    "content": j.content,
-                }
-                for j in journals
-            ]
-        }
-
-        return Response(data)
     
 
 class PersonalTrackStatsView(APIView):
@@ -1060,9 +1060,14 @@ class ExportNotesPDF(APIView):
         html = render_to_string("notes_pdf.html", {"notes": notes})
 
         response = HttpResponse(content_type="application/pdf")
-        pisa.CreatePDF(html, dest=response)
+        response["Content-Disposition"] = 'attachment; filename="notes.pdf"'
 
-        return response
+        pisa_status = pisa.CreatePDF(html, dest=response)
+
+        if pisa_status.err:
+            return Response({"error": "PDF generation failed"}, status=500)
+
+        return response  # ✅ CRITICAL
     
 
 class ExportJournalPDF(APIView):
@@ -1074,9 +1079,14 @@ class ExportJournalPDF(APIView):
         html = render_to_string("journal_pdf.html", {"entries": entries})
 
         response = HttpResponse(content_type="application/pdf")
-        pisa.CreatePDF(html, dest=response)
+        response["Content-Disposition"] = 'attachment; filename="journal.pdf"'
 
-        return response
+        pisa_status = pisa.CreatePDF(html, dest=response)
+
+        if pisa_status.err:
+            return Response({"error": "PDF generation failed"}, status=500)
+
+        return response  # ✅ CRITICAL
     
     
 class ExportBackup(APIView):
@@ -1091,3 +1101,306 @@ class ExportBackup(APIView):
         }
 
         return Response(data)
+    
+
+
+class ExportSingleNotePDF(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, note_id):
+        note = get_object_or_404(Note, id=note_id, user=request.user)
+
+        html = render_to_string("single_note_pdf.html", {"note": note})
+
+        response = HttpResponse(content_type="application/pdf")
+        response['Content-Disposition'] = f'attachment; filename="{note.title}.pdf"'
+
+        pisa.CreatePDF(html, dest=response)
+
+        return response
+    
+    
+class DashboardDataView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        today = date.today()   # ✅ ADD THIS
+        best_hour = "9 PM"   # placeholder
+        mode = "Self Growth"
+        # 🔹 Tracks
+        tracks = Track.objects.filter(user=user)
+
+        tracks_data = [
+            {
+                "id": t.id,
+                "title": t.title,
+                "type": t.type,
+                "due_date": t.due_date,
+            }
+            for t in tracks
+        ]
+
+        # 🔹 Topics
+        topics = Topic.objects.filter(track__user=user)
+
+        topics_data = [
+            {
+                "id": tp.id,
+                "title": tp.title,
+                "status": tp.status,
+                "due_date": tp.due_date,
+                "track_id": tp.track.id,
+                "track_type": tp.track.type,
+                "created_at": tp.created_at,
+                "completed_at": tp.completed_at,
+                "tag": tp.tag,
+            }
+            for tp in topics
+        ]
+
+        # 🔹 Explanations (Feynman)
+        explanations = Explanation.objects.filter(author=user)
+
+        explanations_data = [
+            {
+                "topic_id": e.topic.id if e.topic else None,
+                "clarity_score": e.clarity_score,
+                "created_at": e.created_at,
+            }
+            for e in explanations
+        ]
+
+        # 🔹 Journal
+        journal_entries = JournalEntry.objects.filter(
+            user=user
+        ).order_by("-date")[:7]
+        journal_count = JournalEntry.objects.filter(user=user).count()
+        
+
+        deadlines = []
+
+        for tp in topics:
+            if tp.tag not in ["important", "attention"]:
+                continue
+
+            # ✅ SAFE GUARD
+            if not tp.due_date:
+                continue
+
+            days_left = (tp.due_date - today).days
+
+            # ✅ VERY IMPORTANT FIX
+            if 0 <= days_left <= 7:
+                deadlines.append({
+                    "title": tp.title,
+                    "days_left": days_left
+                })
+        # sort by urgency
+        deadlines.sort(key=lambda x: x["days_left"])
+        
+        
+
+        # Last 30 days
+        days = []
+        today = date.today()
+
+        logs = ActivityLog.objects.filter(
+            user=user,
+            date__gte=today - timedelta(days=30)
+        )
+
+        date_counter = Counter()
+        for log in logs:
+            date_counter[log.date] += 1
+
+        # HEATMAP
+        days = []
+        for i in range(30):
+            d = today - timedelta(days=i)
+            count = date_counter.get(d, 0)
+
+            days.append({
+                "date": str(d),
+                "count": count
+            })
+
+        days.reverse()
+
+        # STREAK
+        streak = 0
+        for i in range(30):
+            d = today - timedelta(days=i)
+            count = date_counter.get(d, 0)
+
+            if count > 0:
+                streak += 1
+            else:
+                break
+
+        # MOST ACTIVE DAY
+        weekday_counter = Counter()
+        for log in logs:
+            weekday = log.date.strftime("%A")
+            weekday_counter[weekday] += 1
+
+        best_day = max(weekday_counter, key=weekday_counter.get) if weekday_counter else None
+
+
+        mode = "Self Growth"
+        
+        hour_counter = Counter()
+
+        for log in logs:
+            hour = log.timestamp.hour
+            hour_counter[hour] += 1
+
+        best_hour = None
+
+        if hour_counter:
+            h = max(hour_counter, key=hour_counter.get)
+
+            if h == 0:
+                best_hour = "12 AM"
+            elif h < 12:
+                best_hour = f"{h} AM"
+            elif h == 12:
+                best_hour = "12 PM"
+            else:
+                best_hour = f"{h-12} PM"
+
+
+        last7 = 0
+
+        for i in range(7):
+            d = today - timedelta(days=i)
+            if date_counter.get(d, 0) > 0:
+                last7 += 1
+
+        momentum = int((last7 / 7) * 100)
+    
+
+        today = now().date()
+        start_date = today - timedelta(days=29)
+
+        logs = ActivityLog.objects.filter(
+            user=user,
+            date__range=[start_date, today]
+        )
+
+        activity_map = {}
+
+        for log in logs:
+            key = str(log.date)
+            activity_map[key] = activity_map.get(key, 0) + 1
+
+        activity_data = []
+
+        for i in range(30):
+            d = start_date + timedelta(days=i)
+            key = str(d)
+
+            activity_data.append({
+                "date": key,
+                "count": activity_map.get(key, 0)
+            })
+
+        activity_data = {
+            "streak": streak,
+            "best_day": best_day,
+            "best_hour": best_hour,
+            "mode": mode,
+            "days": days
+        }
+
+        return Response({
+            "tracks": tracks_data,
+            "topics": topics_data,
+            "explanations": explanations_data,
+            "journal_count": journal_count,
+            "journal": [
+                {
+                    "date": j.date,
+                    "content": j.content
+                }
+                for j in journal_entries
+            ],
+            "deadlines": deadlines,
+            "activity": activity_data,
+            "momentum": momentum
+        })
+    
+
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+
+        old_password = request.data.get("old_password")
+        new_password = request.data.get("new_password")
+
+        # 1️⃣ Check old password
+        if not user.check_password(old_password):
+            return Response(
+                {"error": "Current password is incorrect"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 2️⃣ Validate new password (Django validators)
+        try:
+            validate_password(new_password, user)
+        except ValidationError as e:
+            return Response(
+                {"error": list(e.messages)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 3️⃣ Set new password
+        user.set_password(new_password)
+        user.save()
+
+        return Response({"message": "Password updated successfully"})
+    
+
+class ExportAnalysisView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        today = date.today()
+
+        # 🔹 Tracks
+        tracks = Track.objects.filter(user=user).count()
+
+        # 🔹 Topics
+        topics = Topic.objects.filter(track__user=user)
+        total_topics = topics.count()
+        completed = topics.filter(status="done").count()
+
+        # 🔹 Clarity
+        clarity = Explanation.objects.filter(
+            author=user
+        ).aggregate(avg=Avg("clarity_score"))["avg"] or 0
+
+        # 🔹 Activity (last 30 days)
+        logs = ActivityLog.objects.filter(
+            user=user,
+            date__gte=today - timedelta(days=30)
+        )
+
+        active_days = logs.values("date").distinct().count()
+
+        return Response({
+            "exported_at": now(),
+            "analysis": {
+                "tracks": tracks,
+                "total_topics": total_topics,
+                "completed_topics": completed,
+                "avg_clarity": round(clarity, 2),
+                "active_days_last_30": active_days,
+            }
+        })

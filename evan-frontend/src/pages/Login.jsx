@@ -11,6 +11,7 @@ function Login({ onLogin, onSwitchToSignup }) {
     const navigate = useNavigate();
 
 
+    
     async function handleLogin() {
         console.log("Login clicked");
 
@@ -32,6 +33,8 @@ function Login({ onLogin, onSwitchToSignup }) {
         localStorage.setItem("refresh", data.refresh);
 
         onLogin();
+
+        
     }
 
     return (

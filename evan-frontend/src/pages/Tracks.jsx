@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { apiRequest } from "../api/api";
+import { useSettings } from "../context/SettingsContext";
 
 function Tracks({ onSelectTrack, onTrackCreated }) {
   const [tracks, setTracks] = useState([]);
@@ -9,7 +10,7 @@ const [trackType, setTrackType] = useState("subject");
   const navigate = useNavigate();
   const [sortBy, setSortBy] = useState("created");
   const [filterBy, setFilterBy] = useState("all");
-
+const { refreshSidebar } = useSettings();
   let processedTracks = [...tracks];
 
 // FILTER
@@ -82,9 +83,9 @@ if (sortBy === "created") {
 
     setNewTrack("");
     loadTracks();
-
-
+     refreshSidebar();
   }
+ 
 
   return (
     <div className="container">
